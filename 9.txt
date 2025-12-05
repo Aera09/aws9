@@ -1,73 +1,50 @@
-# !pip install "numpy<2"
-# !pip install imbalanced-learn
+import pandas as pd
 
-import numpy as np
-from sklearn.datasets import make_classification
-from sklearn.model_selection import train_test_split
-from sklearn.linear_model import LogisticRegression
-from sklearn.ensemble import RandomForestClassifier
-from xgboost import XGBClassifier
-from sklearn.metrics import classification_report
-import warnings
-warnings.filterwarnings('ignore')
+# DF1
+DF1 = pd.DataFrame({
+    "ID": [1, 2],
+    "Name": ["A", "B"],
+    "Dept": ["IT", "HR"]
+})
 
-# Step 1: Create an imbalanced binary classification dataset
-X, y = make_classification(n_samples=1000, n_features=10, n_informative=2, n_redundant=8,
-                           weights=[0.9, 0.1], flip_y=0, random_state=42)
+# DF2
+DF2 = pd.DataFrame({
+    "ID": [1, 2],
+    "Salary": [25000, 40000]
+})
 
-np.unique(y, return_counts=True)
+print("DF1:\n", DF1)
+print("\nDF2:\n", DF2)
 
-# Split the dataset into training and testing sets
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, stratify=y, random_state=42)
+# a) Merge DF1 and DF2 on ID
+merged = pd.merge(DF1, DF2, on="ID")
+print("\n(a) Merged DataFrame:\n", merged)
 
-from imblearn.combine import SMOTETomek
+# b) Concatenate DF1 with another 2 new employees
+new_emps = pd.DataFrame({
+    "ID": [3, 4],
+    "Name": ["C", "D"],
+    "Dept": ["IT", "Finance"]
+})
 
-smt = SMOTETomek(random_state=42)
-X_train_res, y_train_res = smt.fit_resample(X_train, y_train)
-np.unique(y_train_res, return_counts=True)
+concatenated = pd.concat([DF1, new_emps], ignore_index=True)
+print("\n(b) Concatenated DataFrame:\n", concatenated)
 
-models = [
-    (
-        "Logistic Regression",
-        {"C": 1, "solver": 'liblinear'},
-        LogisticRegression(),
-        (X_train, y_train),
-        (X_test, y_test)
-    ),
-    (
-        "Random Forest",
-        {"n_estimators": 30, "max_depth": 3},
-        RandomForestClassifier(),
-        (X_train, y_train),
-        (X_test, y_test)
-    ),
-    (
-        "XGBClassifier",
-        {"use_label_encoder": False, "eval_metric": 'logloss'},
-        XGBClassifier(),
-        (X_train, y_train),
-        (X_test, y_test)
-    ),
-    (
-        "XGBClassifier With SMOTE",
-        {"use_label_encoder": False, "eval_metric": 'logloss'},
-        XGBClassifier(),
-        (X_train_res, y_train_res),
-        (X_test, y_test)
-    )
-]
+# For grouping and pivot, we need Salary → use merged + add salary for new employees
+merged_extended = pd.concat([
+    merged,
+    pd.DataFrame({
+        "ID": [3, 4],
+        "Name": ["C", "D"],
+        "Dept": ["IT", "Finance"],
+        "Salary": [35000, 30000]     # sample salary for new employees
+    })
+], ignore_index=True)
 
+# c) Group by Dept and find average salary
+grouped = merged_extended.groupby("Dept")["Salary"].mean()
+print("\n(c) Average Salary by Dept:\n", grouped)
 
-reports = []
-
-for model_name, params, model, train_set, test_set in models:
-    X_train = train_set[0]
-    y_train = train_set[1]
-    X_test = test_set[0]
-    y_test = test_set[1]
-
-    model.set_params(**params)
-    model.fit(X_train, y_train)
-    y_pred = model.predict(X_test)
-    report = classification_report(y_test, y_pred, output_dict=True)
-    reports.append(report)
+# d) Pivot table
+pivot = pd.pivot_table(merged_extended, index="Dept", values="Salary", aggfunc="mean")
+print("\n(d) Pivot Table:\n", pivot)
